@@ -407,7 +407,7 @@ export async function POST(req: Request) {
     const primaryAttempt = await callXaiResponse({
       apiKey,
       content,
-      useWebSearch: true,
+      useWebSearch: false,
       timeoutMs: XAI_PRIMARY_TIMEOUT_MS,
       maxTokens: XAI_MAX_OUTPUT_TOKENS,
       promptText: prompt,
