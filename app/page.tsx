@@ -247,10 +247,22 @@ export default function FlipScannerPage() {
   const [xaiStatus] = useState<'ok' | 'unknown'>('ok');
   const [useForceFlash, setUseForceFlash] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [enableBackgroundEnhancer, setEnableBackgroundEnhancer] = useState(true);
+  const [backgroundSuggestion, setBackgroundSuggestion] = useState('');
+  const [showSuggestionInput, setShowSuggestionInput] = useState(false);
+  const [isEnhancingBackgrounds, setIsEnhancingBackgrounds] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
 
   const captureInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timeout = setTimeout(() => setToastMessage(null), 2400);
+    return () => clearTimeout(timeout);
+  }, [toastMessage]);
 
   // Load history on mount
   useEffect(() => {
@@ -321,7 +333,7 @@ export default function FlipScannerPage() {
           }
         }
       } catch (err) {
-        alert('Could not access camera. Falling back to normal mode.');
+        setToastMessage('Camera flash is unavailable on this device. Using normal capture.');
         setUseForceFlash(false);
         captureInputRef.current?.click();
       }
@@ -381,6 +393,7 @@ export default function FlipScannerPage() {
     setError(null);
     setResult(null);
     setStageIdx(0);
+    setIsEnhancingBackgrounds(false);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -391,6 +404,8 @@ export default function FlipScannerPage() {
           askingPrice: askingPrice.trim(),
           categoryHint: category,
           conditionHint: condition,
+          enableBackgroundEnhancer,
+          backgroundSuggestion: backgroundSuggestion.trim(),
         }),
       });
 
@@ -402,6 +417,12 @@ export default function FlipScannerPage() {
       }
 
       const serverResult = (await res.json()) as Omit<ScanResult, 'thumbnails'>;
+
+      if (enableBackgroundEnhancer) {
+        setIsEnhancingBackgrounds(true);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+
       const full: ScanResult = {
         ...serverResult,
         thumbnails: images.map((i) => i.preview),
@@ -414,6 +435,8 @@ export default function FlipScannerPage() {
     } catch (e) {
       setError(`Analysis failed: ${(e as Error).message}`);
       setScreen('preview');
+    } finally {
+      setIsEnhancingBackgrounds(false);
     }
   };
 
@@ -435,9 +458,10 @@ export default function FlipScannerPage() {
   };
 
   const handleClearHistory = async () => {
-    if (!confirm('Clear all scan history?')) return;
+    setShowClearHistoryConfirm(false);
     await clearHistory();
     setHistoryState([]);
+    setToastMessage('Scan history cleared.');
   };
 
   // =============================================================================
@@ -560,6 +584,7 @@ export default function FlipScannerPage() {
             Powered by Grok · Live comps
           </div>
         </div>
+        <Toast message={toastMessage} />
       </div>
     );
   }
@@ -798,6 +823,50 @@ export default function FlipScannerPage() {
               </div>
             )}
           </div>
+
+          {/* AI Background Enhancer - Polished Design */}
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-base text-white">AI Background Enhancer</div>
+                <div className="text-xs text-neutral-500 mt-0.5">Grok Imagine · Makes items pop on eBay</div>
+              </div>
+              <button
+                onClick={() => setEnableBackgroundEnhancer((v) => !v)}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  enableBackgroundEnhancer
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-neutral-800 text-neutral-400'
+                }`}
+              >
+                {enableBackgroundEnhancer ? '✓ Enabled' : 'Disabled'}
+              </button>
+            </div>
+
+            {enableBackgroundEnhancer && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowSuggestionInput((v) => !v)}
+                  className="flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 transition"
+                >
+                  {showSuggestionInput ? '− Hide suggestion' : '+ Add custom background idea'}
+                </button>
+
+                {showSuggestionInput && (
+                  <textarea
+                    value={backgroundSuggestion}
+                    onChange={(e) => setBackgroundSuggestion(e.target.value)}
+                    placeholder="Examples: rustic wood table, pastel shelf, clean white studio, beach vibe..."
+                    className="mt-3 w-full h-24 bg-neutral-950 border border-neutral-700 rounded-2xl p-4 text-sm text-white placeholder-neutral-500 resize-y focus:outline-none focus:border-blue-500 transition"
+                  />
+                )}
+
+                <p className="text-[10px] text-neutral-500 mt-3">
+                  Will generate 2 enhanced versions · Adds ~3–7¢ per scan
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Fixed bottom analyze button */}
@@ -811,6 +880,7 @@ export default function FlipScannerPage() {
             Analyze
           </button>
         </div>
+        <Toast message={toastMessage} />
       </div>
     );
   }
@@ -829,7 +899,7 @@ export default function FlipScannerPage() {
         </div>
         <div className="mt-8 text-center">
           <div className="text-lg font-semibold text-white">
-            {LOADING_STAGES[stageIdx].text}
+            {isEnhancingBackgrounds ? 'Polishing photos...' : LOADING_STAGES[stageIdx].text}
           </div>
           <div className="text-xs text-neutral-500 mt-1.5">
             Typically 20–40 seconds
@@ -845,6 +915,19 @@ export default function FlipScannerPage() {
             />
           ))}
         </div>
+
+        {isEnhancingBackgrounds && (
+          <div className="mt-8">
+            <div className="inline-flex items-center gap-3 bg-neutral-900 border border-neutral-700 rounded-2xl px-6 py-3">
+              <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+              <div>
+                <div className="text-sm font-medium text-white">Enhancing backgrounds...</div>
+                <div className="text-xs text-neutral-500">Grok Imagine is creating 2 nice versions</div>
+              </div>
+            </div>
+          </div>
+        )}
+        <Toast message={toastMessage} />
       </div>
     );
   }
@@ -856,6 +939,10 @@ export default function FlipScannerPage() {
         result={result}
         onNewScan={resetAll}
         onBack={() => setScreen('preview')}
+        onAdjustBackground={() => {
+          setShowSuggestionInput(true);
+          setScreen('preview');
+        }}
       />
     );
   }
@@ -874,7 +961,7 @@ export default function FlipScannerPage() {
           </button>
           <div className="text-sm font-semibold text-neutral-300">History</div>
           <button
-            onClick={handleClearHistory}
+            onClick={() => setShowClearHistoryConfirm(true)}
             disabled={history.length === 0}
             className="text-xs text-neutral-500 active:text-rose-400 disabled:opacity-30 px-2"
           >
@@ -945,6 +1032,15 @@ export default function FlipScannerPage() {
             })
           )}
         </div>
+        <ConfirmSheet
+          open={showClearHistoryConfirm}
+          title="Clear scan history?"
+          message="This removes all saved scans from this browser on this device."
+          confirmLabel="Clear History"
+          onCancel={() => setShowClearHistoryConfirm(false)}
+          onConfirm={handleClearHistory}
+        />
+        <Toast message={toastMessage} />
       </div>
     );
   }
@@ -960,10 +1056,12 @@ function ReportView({
   result,
   onNewScan,
   onBack,
+  onAdjustBackground,
 }: {
   result: ScanResult;
   onNewScan: () => void;
   onBack: () => void;
+  onAdjustBackground: () => void;
 }) {
   const isSourcing = result.mode === 'sourcing';
   const listing = result.listing;
@@ -974,6 +1072,7 @@ function ReportView({
   const verdict = result.verdict;
   const vs = verdictStyle(verdict?.action);
   const VerdictIcon = vs.Icon;
+  const [selectedEnhancedIndex, setSelectedEnhancedIndex] = useState(0);
 
   return (
     <div className="min-h-dvh bg-neutral-950">
@@ -1266,6 +1365,45 @@ function ReportView({
           </CollapsibleSection>
         )}
 
+        {/* Grok Imagine enhanced backgrounds */}
+        {result.enhancedImages && result.enhancedImages.length > 0 && (
+          <section className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold text-white">AI Background Variations</div>
+              <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                Grok Imagine · {result.enhancedImages.length} versions
+              </div>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+              {result.enhancedImages.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedEnhancedIndex(i)}
+                  className={`flex-shrink-0 border-2 rounded-2xl overflow-hidden transition-all active:scale-95 ${
+                    i === selectedEnhancedIndex
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/40'
+                      : 'border-neutral-700'
+                  }`}
+                >
+                  <img
+                    src={url}
+                    alt={`Enhanced background ${i + 1}`}
+                    className="w-40 h-40 object-contain bg-white"
+                  />
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={onAdjustBackground}
+              className="text-[11px] text-neutral-500 underline mt-3 block"
+            >
+              Suggest a different background &amp; rescan
+            </button>
+          </section>
+        )}
+
         {/* Estimated cost pill */}
         <div className="flex justify-center">
           <div className="inline-flex items-center gap-2 bg-neutral-900 border border-neutral-800 text-neutral-400 text-xs font-medium px-4 h-9 rounded-3xl">
@@ -1308,6 +1446,14 @@ function ListingCard({
   );
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [heroIdx, setHeroIdx] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showOpenEbayConfirm, setShowOpenEbayConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timeout = setTimeout(() => setToastMessage(null), 2400);
+    return () => clearTimeout(timeout);
+  }, [toastMessage]);
 
   const selectedPrice =
     selectedStrategy === 'aggressive'
@@ -1328,8 +1474,7 @@ function ListingCard({
 
   const openEbaySell = async () => {
     await handleCopy('all', buildListingMarkdown(listing));
-    if (!confirm('Make sure you are signed into eBay first.\n\nThe sell page will open now.')) return;
-    window.open('https://www.ebay.com/sl/sell', '_blank', 'noopener');
+    setShowOpenEbayConfirm(true);
   };
 
   const copyMobileFriendly = async () => {
@@ -1345,7 +1490,7 @@ function ListingCard({
     ].join('\n');
     const ok = await copyToClipboard(mobileText);
     if (ok) {
-      alert('✅ Mobile-friendly text copied!\n\nPaste directly into the eBay app or mobile site.');
+      setToastMessage('Mobile-friendly text copied. Paste it into the eBay app or mobile site.');
     }
   };
 
@@ -1362,6 +1507,7 @@ function ListingCard({
       }
     } else {
       await handleCopy('all', md);
+      setToastMessage('Markdown copied. Share is not available on this device.');
     }
   };
 
@@ -1676,6 +1822,18 @@ function ListingCard({
           </div>
         </div>
       </div>
+      <ConfirmSheet
+        open={showOpenEbayConfirm}
+        title="Open eBay Sell?"
+        message="Your listing text has been copied. This will open the eBay sell flow in a new tab or Safari."
+        confirmLabel="Open eBay"
+        onCancel={() => setShowOpenEbayConfirm(false)}
+        onConfirm={() => {
+          setShowOpenEbayConfirm(false);
+          window.open('https://www.ebay.com/sl/sell', '_blank', 'noopener');
+        }}
+      />
+      <Toast message={toastMessage} />
     </section>
   );
 }
@@ -1791,5 +1949,60 @@ function CollapsibleSection({
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
     </section>
+  );
+}
+
+function Toast({ message }: { message: string | null }) {
+  if (!message) return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none px-4 pb-safe-plus">
+      <div className="mx-auto max-w-md rounded-2xl border border-neutral-700 bg-neutral-900/95 px-4 py-3 text-sm text-neutral-100 shadow-2xl shadow-black/40 backdrop-blur">
+        {message}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmSheet({
+  open,
+  title,
+  message,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md mx-auto rounded-3xl border border-neutral-800 bg-neutral-950 p-5 shadow-2xl shadow-black/50">
+        <div className="text-lg font-semibold text-white">{title}</div>
+        <div className="mt-2 text-sm leading-relaxed text-neutral-400">{message}</div>
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-sm font-semibold text-neutral-300 active:bg-neutral-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              void onConfirm();
+            }}
+            className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white active:bg-blue-700"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

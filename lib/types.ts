@@ -135,6 +135,7 @@ export interface AnalyzeResponse extends GrokAnalysis {
   askingPrice: number | null;
   citations: string[];
   model: string;
+  enhancedImages: string[];
 }
 
 export interface ScanResult extends AnalyzeResponse {
@@ -153,6 +154,8 @@ export interface AnalyzeRequest {
   askingPrice: string;
   categoryHint: string;
   conditionHint: string;
+  enableBackgroundEnhancer?: boolean;
+  backgroundSuggestion?: string;
 }
 
 // ---------- Client-only -----------------------------------------------------
