@@ -10,9 +10,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/responses';
-const XAI_IMAGINE_ENDPOINT = 'https://api.x.ai/v1/images/edits';
 const DEFAULT_MODEL = process.env.XAI_MODEL || 'grok-4-1-fast-reasoning';
-const ENABLE_BACKGROUND_ENHANCER = true; // global on/off switch
 
 // ---------- prompt ----------------------------------------------------------
 
@@ -317,9 +315,6 @@ export async function POST(req: Request) {
 
   const categoryHint = body.categoryHint || 'auto';
   const conditionHint = body.conditionHint || 'auto';
-  const enableEnhancer = ENABLE_BACKGROUND_ENHANCER && (body.enableBackgroundEnhancer ?? true);
-  const backgroundSuggestion = (body.backgroundSuggestion || '').trim();
-
   const prompt = buildPrompt(
     mode,
     images.length,
@@ -425,57 +420,6 @@ export async function POST(req: Request) {
     parsed.verdict = null;
   }
 
-  // === GROK IMAGINE BACKGROUND ENHANCER ===
-  let enhancedImages: string[] = [];
-  if (enableEnhancer && images.length > 0) {
-    try {
-      const mainImage = images[0];
-      const itemName = parsed.identification?.name || 'this collectible item';
-      const userSuggestion = backgroundSuggestion;
-
-      const basePrompt =
-        'Replace ONLY the background. Keep the item itself completely unchanged — ' +
-        'exact appearance, lighting, shadows, angle, and details. ' +
-        'Create a clean, professional, highly sellable eBay-style product photo with natural lighting.';
-
-      const fullPrompt = userSuggestion
-        ? `${basePrompt} User requested: ${userSuggestion}`
-        : `${basePrompt} For a ${itemName}, use an appropriate subtle and attractive background ` +
-          'such as light wood table, clean studio, soft neutral setting, or collector shelf. ' +
-          'Prefer clean and light backgrounds unless the item strongly suggests otherwise. ' +
-          'Photorealistic product photography.';
-
-      const editBody = {
-        model: 'grok-imagine-image',
-        prompt: fullPrompt,
-        image: {
-          url: `data:${mainImage.mediaType};base64,${mainImage.data}`,
-        },
-        n: 2,
-      };
-
-      const imagineRes = await fetch(XAI_IMAGINE_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editBody),
-      });
-
-      if (imagineRes.ok) {
-        const imagineData = await imagineRes.json();
-        enhancedImages = ((imagineData.data || []) as Array<{ url?: string; image_url?: string }>)
-          .map((item) => item.url || item.image_url || '')
-          .filter(Boolean);
-      } else {
-        console.error('Grok Imagine edit failed:', await imagineRes.text().catch(() => ''));
-      }
-    } catch (err) {
-      console.error('Grok Imagine background enhancer error:', err);
-    }
-  }
-
   const response: AnalyzeResponse = {
     ...parsed,
     id: Date.now(),
@@ -484,7 +428,7 @@ export async function POST(req: Request) {
     askingPrice: askingPriceNum,
     citations: data.citations || [],
     model: DEFAULT_MODEL,
-    enhancedImages,
+    enhancedImages: [],
   };
 
   return NextResponse.json(response);

@@ -417,14 +417,42 @@ export default function FlipScannerPage() {
       }
 
       const serverResult = (await res.json()) as Omit<ScanResult, 'thumbnails'>;
+      let enhancedImages = serverResult.enhancedImages || [];
 
       if (enableBackgroundEnhancer) {
         setIsEnhancingBackgrounds(true);
         await new Promise((resolve) => setTimeout(resolve, 800));
+
+        try {
+          const enhanceRes = await fetch('/api/enhance-backgrounds', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image: {
+                data: images[0].data,
+                mediaType: images[0].mediaType,
+              },
+              itemName: serverResult.identification?.name,
+              backgroundSuggestion: backgroundSuggestion.trim(),
+            }),
+          });
+
+          if (enhanceRes.ok) {
+            const enhanceData = (await enhanceRes.json()) as {
+              enhancedImages?: string[];
+            };
+            enhancedImages = enhanceData.enhancedImages || [];
+          } else {
+            console.error('Background enhancer request failed');
+          }
+        } catch (err) {
+          console.error('Background enhancer request error:', err);
+        }
       }
 
       const full: ScanResult = {
         ...serverResult,
+        enhancedImages,
         thumbnails: images.map((i) => i.preview),
       };
 
