@@ -11,6 +11,8 @@ export const maxDuration = 60;
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/responses';
 const DEFAULT_MODEL = process.env.XAI_MODEL || 'grok-4-1-fast-reasoning';
+const XAI_REQUEST_TIMEOUT_MS = 48_000;
+const XAI_MAX_OUTPUT_TOKENS = 2200;
 
 // ---------- prompt ----------------------------------------------------------
 
@@ -79,13 +81,13 @@ ${modeInstructions}
 === REQUIRED STEPS ===
 1. IDENTIFY the item precisely from the images. Read any tags, labels, matrix numbers, or markings you can see. Return maker, year/era, variant/edition, and an honest confidence score (0-100).
 
-2. USE LIVE WEB SEARCH to gather market data. Run 2-4 targeted searches. Prioritize queries that surface SOLD listings specifically — not active asking prices. Examples:
+2. USE LIVE WEB SEARCH to gather market data. Run 1-2 targeted searches. Prioritize queries that surface SOLD listings specifically — not active asking prices. Examples:
    • "[exact item name] sold ebay 2026"
    • "[item] completed listing price"
    • "[item] worthpoint sold price"
    Also look at other collector marketplaces (Mercari, Discogs for vinyl, TCGPlayer for cards, Heritage Auctions, etc.) when relevant.
 
-3. LABEL EACH COMP with its type: "sold" (actual completed sale), "asking" (active listing price), or "reference" (price guide or aggregator estimate). Aim for 4-8 comps total, weighted heavily toward sold.
+3. LABEL EACH COMP with its type: "sold" (actual completed sale), "asking" (active listing price), or "reference" (price guide or aggregator estimate). Aim for 3-6 comps total, weighted heavily toward sold.
 
 4. COMPUTE market stats from the comps:
    • avgSold = weighted average of *sold* comps only (if no sold comps, use 0 and note it)
@@ -335,11 +337,13 @@ export async function POST(req: Request) {
     model: DEFAULT_MODEL,
     input: [{ role: 'user', content }],
     temperature: 0.3,
-    max_output_tokens: 3500,
-    tools: [{ type: 'web_search' }, { type: 'x_search' }],
+    max_output_tokens: XAI_MAX_OUTPUT_TOKENS,
+    tools: [{ type: 'web_search' }],
   };
 
   let grokRes: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), XAI_REQUEST_TIMEOUT_MS);
   try {
     grokRes = await fetch(XAI_ENDPOINT, {
       method: 'POST',
@@ -347,13 +351,26 @@ export async function POST(req: Request) {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify(grokBody),
     });
   } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      console.error(`[xAI] API timeout after ${XAI_REQUEST_TIMEOUT_MS}ms`);
+      return NextResponse.json(
+        {
+          error:
+            'Analysis took too long. Try again with fewer photos or a more specific item/category hint.',
+        },
+        { status: 504 }
+      );
+    }
     return NextResponse.json(
       { error: `Network error calling xAI: ${(e as Error).message}` },
       { status: 502 }
     );
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (!grokRes.ok) {
