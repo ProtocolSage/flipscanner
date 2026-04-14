@@ -11,8 +11,10 @@ export const maxDuration = 60;
 
 const XAI_ENDPOINT = 'https://api.x.ai/v1/responses';
 const DEFAULT_MODEL = process.env.XAI_MODEL || 'grok-4-1-fast-reasoning';
-const XAI_REQUEST_TIMEOUT_MS = 48_000;
+const XAI_PRIMARY_TIMEOUT_MS = 28_000;
+const XAI_FALLBACK_TIMEOUT_MS = 14_000;
 const XAI_MAX_OUTPUT_TOKENS = 2200;
+const XAI_FALLBACK_MAX_OUTPUT_TOKENS = 1400;
 
 // ---------- prompt ----------------------------------------------------------
 
@@ -213,6 +215,24 @@ RULES:
 - Title MUST be <= 80 characters.`;
 }
 
+function buildFallbackPrompt(
+  mode: ScanMode,
+  imageCount: number,
+  askingPrice: string,
+  categoryHint: string,
+  conditionHint: string
+): string {
+  return `${buildPrompt(mode, imageCount, askingPrice, categoryHint, conditionHint)}
+
+FALLBACK MODE:
+- Do NOT use web search or external tools.
+- Work from the images, visible text, and your existing knowledge only.
+- If you are uncertain, lower identification.confidence and be conservative with pricing.
+- Set market.timeframe to "estimate only — no live comps".
+- If you do not have trustworthy live comps, return comps as [] and set soldCount, askingCount, and sampleSize to 0.
+- In tips or reasoning, make it clear the pricing is an estimate rather than a live sold-comp analysis.`;
+}
+
 // ---------- Grok call types (Responses API) ---------------------------------
 
 interface GrokContentBlock {
@@ -278,6 +298,53 @@ function truncateTitle(title: string | undefined, max = 80): string {
   return title.slice(0, max).trimEnd();
 }
 
+async function callXaiResponse({
+  apiKey,
+  content,
+  useWebSearch,
+  timeoutMs,
+  maxTokens,
+  promptText,
+}: {
+  apiKey: string;
+  content: GrokContentBlock[];
+  useWebSearch: boolean;
+  timeoutMs: number;
+  maxTokens: number;
+  promptText: string;
+}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(XAI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        input: [{ role: 'user', content: [...content, { type: 'input_text', text: promptText }] }],
+        temperature: 0.3,
+        max_output_tokens: maxTokens,
+        ...(useWebSearch ? { tools: [{ type: 'web_search' }] } : {}),
+      }),
+    });
+
+    return { response, timedOut: false };
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      return { response: null, timedOut: true };
+    }
+
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // ---------- POST ------------------------------------------------------------
 
 export async function POST(req: Request) {
@@ -317,7 +384,8 @@ export async function POST(req: Request) {
 
   const categoryHint = body.categoryHint || 'auto';
   const conditionHint = body.conditionHint || 'auto';
-  const prompt = buildPrompt(
+  const prompt = buildPrompt(mode, images.length, askingPriceStr, categoryHint, conditionHint);
+  const fallbackPrompt = buildFallbackPrompt(
     mode,
     images.length,
     askingPriceStr,
@@ -330,53 +398,84 @@ export async function POST(req: Request) {
       type: 'input_image',
       image_url: `data:${img.mediaType};base64,${img.data}`,
     })),
-    { type: 'input_text', text: prompt },
   ];
 
-  const grokBody = {
-    model: DEFAULT_MODEL,
-    input: [{ role: 'user', content }],
-    temperature: 0.3,
-    max_output_tokens: XAI_MAX_OUTPUT_TOKENS,
-    tools: [{ type: 'web_search' }],
-  };
+  let grokRes: Response | null = null;
+  let usedFallback = false;
 
-  let grokRes: Response;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), XAI_REQUEST_TIMEOUT_MS);
   try {
-    grokRes = await fetch(XAI_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify(grokBody),
+    const primaryAttempt = await callXaiResponse({
+      apiKey,
+      content,
+      useWebSearch: true,
+      timeoutMs: XAI_PRIMARY_TIMEOUT_MS,
+      maxTokens: XAI_MAX_OUTPUT_TOKENS,
+      promptText: prompt,
     });
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') {
-      console.error(`[xAI] API timeout after ${XAI_REQUEST_TIMEOUT_MS}ms`);
-      return NextResponse.json(
-        {
-          error:
-            'Analysis took too long. Try again with fewer photos or a more specific item/category hint.',
-        },
-        { status: 504 }
-      );
+
+    if (primaryAttempt.timedOut) {
+      console.error(`[xAI] Primary analysis timed out after ${XAI_PRIMARY_TIMEOUT_MS}ms`);
+      usedFallback = true;
+    } else {
+      grokRes = primaryAttempt.response;
     }
+  } catch (e) {
+    console.error('[xAI] Primary analysis network error:', e);
+    usedFallback = true;
+  }
+
+  if (!grokRes || !grokRes.ok) {
+    if (grokRes && !grokRes.ok) {
+      const errText = await grokRes.text().catch(() => '');
+      console.error('[xAI] Primary API error', grokRes.status, errText);
+      usedFallback = true;
+    }
+
+    if (usedFallback) {
+      try {
+        const fallbackAttempt = await callXaiResponse({
+          apiKey,
+          content,
+          useWebSearch: false,
+          timeoutMs: XAI_FALLBACK_TIMEOUT_MS,
+          maxTokens: XAI_FALLBACK_MAX_OUTPUT_TOKENS,
+          promptText: fallbackPrompt,
+        });
+
+        if (fallbackAttempt.timedOut || !fallbackAttempt.response) {
+          console.error(`[xAI] Fallback analysis timed out after ${XAI_FALLBACK_TIMEOUT_MS}ms`);
+          return NextResponse.json(
+            {
+              error:
+                'Analysis took too long. Try again with fewer photos or a more specific item/category hint.',
+            },
+            { status: 504 }
+          );
+        }
+
+        grokRes = fallbackAttempt.response;
+      } catch (e) {
+        return NextResponse.json(
+          { error: `Network error calling xAI fallback: ${(e as Error).message}` },
+          { status: 502 }
+        );
+      }
+    }
+  }
+
+  if (!grokRes) {
     return NextResponse.json(
-      { error: `Network error calling xAI: ${(e as Error).message}` },
-      { status: 502 }
+      {
+        error:
+          'Analysis took too long. Try again with fewer photos or a more specific item/category hint.',
+      },
+      { status: 504 }
     );
-  } finally {
-    clearTimeout(timeout);
   }
 
   if (!grokRes.ok) {
     const errText = await grokRes.text().catch(() => '');
-    // Log the full error body server-side for debugging deserialization hints
-    console.error('[xAI] API error', grokRes.status, errText);
+    console.error('[xAI] API error after fallback', grokRes.status, errText);
     return NextResponse.json(
       { error: `xAI API ${grokRes.status}: ${errText.slice(0, 400)}` },
       { status: 502 }
@@ -444,7 +543,7 @@ export async function POST(req: Request) {
     mode,
     askingPrice: askingPriceNum,
     citations: data.citations || [],
-    model: DEFAULT_MODEL,
+    model: usedFallback ? `${DEFAULT_MODEL} (fallback)` : DEFAULT_MODEL,
     enhancedImages: [],
   };
 
