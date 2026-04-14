@@ -76,7 +76,7 @@ const CONDITIONS = [
 const LOADING_STAGES = [
   { icon: Eye, text: 'Examining photos' },
   { icon: Search, text: 'Identifying the item' },
-  { icon: TrendingUp, text: 'Searching sold comps' },
+  { icon: TrendingUp, text: 'Estimating market value' },
   { icon: FileText, text: 'Building your listing' },
 ];
 
@@ -532,7 +532,7 @@ export default function FlipScannerPage() {
 
         <header className="flex items-center justify-between px-4 pt-safe pt-4 pb-2">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
               <Zap className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-lg font-bold tracking-tight">FlipScanner</h1>
@@ -559,7 +559,7 @@ export default function FlipScannerPage() {
           >
             <History className="w-5 h-5" />
             {history.length > 0 && (
-              <span className="absolute top-1 right-1 bg-blue-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute top-1 right-1 bg-amber-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                 {history.length > 99 ? '99+' : history.length}
               </span>
             )}
@@ -580,7 +580,7 @@ export default function FlipScannerPage() {
           <button
             onClick={triggerCapture}
             disabled={processingImage}
-            className="group w-full max-w-sm aspect-square rounded-[2rem] bg-gradient-to-br from-blue-500 to-violet-600 shadow-2xl shadow-blue-500/30 flex flex-col items-center justify-center gap-4 active:scale-[0.98] transition disabled:opacity-60"
+            className="group w-full max-w-sm aspect-square rounded-[2rem] bg-gradient-to-br from-amber-400 to-orange-500 shadow-2xl shadow-amber-500/30 flex flex-col items-center justify-center gap-4 active:scale-[0.98] transition disabled:opacity-60"
           >
             <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
               <Camera className="w-12 h-12 text-white" strokeWidth={1.5} />
@@ -609,7 +609,7 @@ export default function FlipScannerPage() {
 
         <div className="pb-safe-plus px-6 text-center">
           <div className="text-[11px] text-neutral-600">
-            Powered by Grok · Live comps
+            Powered by Grok · Vision AI
           </div>
         </div>
         <Toast message={toastMessage} />
@@ -769,7 +769,7 @@ export default function FlipScannerPage() {
                     onChange={(e) => setAskingPrice(e.target.value)}
                     placeholder="0"
                     autoFocus
-                    className="w-full pl-9 pr-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition"
+                    className="w-full pl-9 pr-3 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500 transition"
                   />
                 </div>
                 {askingPrice && (
@@ -818,7 +818,7 @@ export default function FlipScannerPage() {
                         onClick={() => setCategory(c.id)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                           category === c.id
-                            ? 'bg-blue-500 border-blue-400 text-white'
+                            ? 'bg-amber-500 border-amber-400 text-white'
                             : 'bg-neutral-950 border-neutral-800 text-neutral-400'
                         }`}
                       >
@@ -839,7 +839,7 @@ export default function FlipScannerPage() {
                         onClick={() => setCondition(c.id)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                           condition === c.id
-                            ? 'bg-blue-500 border-blue-400 text-white'
+                            ? 'bg-amber-500 border-amber-400 text-white'
                             : 'bg-neutral-950 border-neutral-800 text-neutral-400'
                         }`}
                       >
@@ -875,7 +875,7 @@ export default function FlipScannerPage() {
               <div className="mt-4">
                 <button
                   onClick={() => setShowSuggestionInput((v) => !v)}
-                  className="flex items-center gap-1 text-sm text-blue-400 active:text-blue-300 transition"
+                  className="flex items-center gap-1 text-sm text-amber-400 active:text-amber-300 transition"
                 >
                   {showSuggestionInput ? '− Hide suggestion' : '+ Add custom background idea'}
                 </button>
@@ -885,7 +885,7 @@ export default function FlipScannerPage() {
                     value={backgroundSuggestion}
                     onChange={(e) => setBackgroundSuggestion(e.target.value)}
                     placeholder="Examples: rustic wood table, pastel shelf, clean white studio, beach vibe..."
-                    className="mt-3 w-full h-24 bg-neutral-950 border border-neutral-700 rounded-2xl p-4 text-sm text-white placeholder-neutral-500 resize-y focus:outline-none focus:border-blue-500 transition"
+                    className="mt-3 w-full h-24 bg-neutral-950 border border-neutral-700 rounded-2xl p-4 text-sm text-white placeholder-neutral-500 resize-y focus:outline-none focus:border-amber-500 transition"
                   />
                 )}
 
@@ -902,7 +902,7 @@ export default function FlipScannerPage() {
           <button
             onClick={analyze}
             disabled={images.length === 0 || processingImage}
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-violet-600 text-white font-bold text-base shadow-lg shadow-blue-500/30 active:scale-[0.98] disabled:opacity-40 transition flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold text-base shadow-lg shadow-amber-500/30 active:scale-[0.98] disabled:opacity-40 transition flex items-center justify-center gap-2"
           >
             <Sparkles className="w-5 h-5" />
             Analyze
@@ -920,9 +920,9 @@ export default function FlipScannerPage() {
       <div className="min-h-dvh flex flex-col items-center justify-center bg-neutral-950 px-6">
         <div className="relative">
           <div className="w-28 h-28 rounded-full border-4 border-neutral-800" />
-          <div className="absolute inset-0 w-28 h-28 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+          <div className="absolute inset-0 w-28 h-28 rounded-full border-4 border-amber-500 border-t-transparent animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <Stage className="w-10 h-10 text-blue-400" strokeWidth={1.5} />
+            <Stage className="w-10 h-10 text-amber-400" strokeWidth={1.5} />
           </div>
         </div>
         <div className="mt-8 text-center">
@@ -930,7 +930,7 @@ export default function FlipScannerPage() {
             {isEnhancingBackgrounds ? 'Polishing photos...' : LOADING_STAGES[stageIdx].text}
           </div>
           <div className="text-xs text-neutral-500 mt-1.5">
-            Typically 20–40 seconds
+            Typically 10–20 seconds
           </div>
         </div>
         <div className="flex gap-2 mt-6">
@@ -938,7 +938,7 @@ export default function FlipScannerPage() {
             <div
               key={i}
               className={`h-1.5 w-10 rounded-full transition ${
-                i <= stageIdx ? 'bg-blue-500' : 'bg-neutral-800'
+                i <= stageIdx ? 'bg-amber-500' : 'bg-neutral-800'
               }`}
             />
           ))}
@@ -1043,7 +1043,7 @@ export default function FlipScannerPage() {
                       </div>
                     )}
                     {h.mode === 'inventory' && (
-                      <div className="px-2 py-1 rounded-md text-[10px] font-bold border bg-blue-500/10 text-blue-300 border-blue-500/30">
+                      <div className="px-2 py-1 rounded-md text-[10px] font-bold border bg-amber-500/10 text-amber-300 border-amber-500/30">
                         LIST
                       </div>
                     )}
@@ -1176,10 +1176,10 @@ function ReportView({
 
         {/* INVENTORY MODE: compact intel strip */}
         {!isSourcing && (
-          <div className="rounded-2xl p-4 bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20">
+          <div className="rounded-2xl p-4 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
             <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-blue-400" />
-              <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300">
+              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <div className="text-[10px] font-bold uppercase tracking-widest text-amber-300">
                 Listing ready
               </div>
               {ident.confidence != null && (
@@ -1295,7 +1295,7 @@ function ReportView({
         {comps.length > 0 && (
           <CollapsibleSection
             icon={Search}
-            iconColor="text-blue-400"
+            iconColor="text-amber-400"
             title={`Comps (${comps.length})`}
             defaultOpen={false}
           >
@@ -1372,7 +1372,7 @@ function ReportView({
         {result.citations && result.citations.length > 0 && (
           <CollapsibleSection
             icon={LinkIcon}
-            iconColor="text-blue-400"
+            iconColor="text-amber-400"
             title={`Sources (${result.citations.length})`}
             defaultOpen={false}
           >
@@ -1383,7 +1383,7 @@ function ReportView({
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] text-blue-400 active:text-blue-300 truncate block"
+                    className="text-[11px] text-amber-400 active:text-amber-300 truncate block"
                   >
                     {url.replace(/^https?:\/\//, '').slice(0, 70)}
                   </a>
@@ -1553,7 +1553,7 @@ function ListingCard({
         className="w-full rounded-2xl p-4 bg-neutral-900 border border-neutral-800 active:bg-neutral-800 transition text-left"
       >
         <div className="flex items-center gap-2 mb-2">
-          <FileText className="w-4 h-4 text-blue-400" />
+          <FileText className="w-4 h-4 text-amber-400" />
           <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
             eBay Listing Preview
           </div>
@@ -1602,7 +1602,7 @@ function ListingCard({
                   key={i}
                   onClick={() => setHeroIdx(i)}
                   className={`w-14 h-14 rounded border-2 overflow-hidden flex-shrink-0 ${
-                    i === heroIdx ? 'border-blue-600' : 'border-neutral-200'
+                    i === heroIdx ? 'border-amber-500' : 'border-neutral-200'
                   }`}
                 >
                   <img src={t} alt="" className="w-full h-full object-cover" />
@@ -1692,22 +1692,22 @@ function ListingCard({
         {/* Format */}
         <div>
           <FieldLabel label="Format" />
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-1">
-              <FormatIcon className="w-4 h-4 text-blue-700" />
-              <div className="text-sm font-bold text-blue-900">
+              <FormatIcon className="w-4 h-4 text-amber-700" />
+              <div className="text-sm font-bold text-amber-900">
                 {formatInfo.label}
               </div>
-              <div className="ml-auto text-[10px] text-blue-700 font-semibold">
+              <div className="ml-auto text-[10px] text-amber-700 font-semibold">
                 {listing.format.duration}
               </div>
             </div>
-            <div className="text-[11px] text-blue-800/80 leading-snug">
+            <div className="text-[11px] text-amber-900/70 leading-snug">
               {listing.format.reasoning}
             </div>
             {listing.format.type === 'auction' &&
               listing.format.startingBid != null && (
-                <div className="mt-2 text-[11px] text-blue-900 font-semibold">
+                <div className="mt-2 text-[11px] text-amber-900 font-semibold">
                   Starting bid: {money(listing.format.startingBid)}
                 </div>
               )}
@@ -2025,7 +2025,7 @@ function ConfirmSheet({
             onClick={() => {
               void onConfirm();
             }}
-            className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white active:bg-blue-700"
+            className="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white active:bg-amber-600"
           >
             {confirmLabel}
           </button>
